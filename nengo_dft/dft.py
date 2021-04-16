@@ -2,7 +2,7 @@ import nengo
 import numpy as np
 
 class DFT(nengo.Network):
-    def __init__(self, shape, tau=0.02, c_noise=1, beta=4, global_inh=0, h=None):
+    def __init__(self, shape, tau=0.02, c_noise=1, beta=4, global_inh=0, h=None, dt=0.001):
         super().__init__()
         self.shape = shape
         with self:
@@ -34,7 +34,6 @@ class DFT(nengo.Network):
             nengo.Connection(self.noise, self.du, transform=c_noise)
             
             # TODO: is there a better way to do this with a synapse so we don't hard-code dt?
-            dt = 0.001
             nengo.Connection(self.u, self.u, synapse=0)
             nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
             
