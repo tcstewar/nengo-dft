@@ -8,7 +8,9 @@ class DFT(nengo.Network):
         with self:
             n_neurons = np.prod(shape)
             
+            self.init_u = nengo.Node(lambda t: h if t==dt else 0)
             self.u = nengo.Node(None, size_in=n_neurons)
+            nengo.Connection(self.init_u, self.u, transform=np.ones((n_neurons, 1)), synapse=None)
             self.g = nengo.Ensemble(n_neurons=n_neurons, dimensions=1,
                                     gain = np.ones(n_neurons)*beta,
                                     bias = np.zeros(n_neurons),
@@ -29,13 +31,14 @@ class DFT(nengo.Network):
             
             self.du = nengo.Node(None, size_in=n_neurons)
             nengo.Connection(self.u, self.du, transform=-1, synapse=0)
-            nengo.Connection(self.s, self.du, synapse=None)
-            nengo.Connection(self.h, self.du, transform=np.ones((n_neurons, 1)), synapse=None)
-            nengo.Connection(self.noise, self.du, transform=c_noise)
+            nengo.Connection(self.s, self.du, synapse=0)
+            nengo.Connection(self.h, self.du, transform=np.ones((n_neurons, 1)), synapse=0)
+            nengo.Connection(self.noise, self.du, transform=c_noise, synapse=None)
             
             # TODO: is there a better way to do this with a synapse so we don't hard-code dt?
             nengo.Connection(self.u, self.u, synapse=0)
-            nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
+            #nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
+            nengo.Connection(self.du, self.u, synapse=None, transform=1/tau)
             
             # TODO: is this more accurate?
             #nengo.Connection(self.du, self.u, synapse=None, transform=-(1-np.exp(dt/tau)))
