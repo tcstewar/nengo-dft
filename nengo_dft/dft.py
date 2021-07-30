@@ -37,8 +37,9 @@ class DFT(nengo.Network):
             
             # TODO: is there a better way to do this with a synapse so we don't hard-code dt?
             nengo.Connection(self.u, self.u, synapse=0)
-            #nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
-            nengo.Connection(self.du, self.u, synapse=None, transform=1/tau)
+            # NOTE: next line will avoid the increase to infinity of u
+            nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
+            #nengo.Connection(self.du, self.u, synapse=None, transform=1/tau)
             
             # TODO: is this more accurate?
             #nengo.Connection(self.du, self.u, synapse=None, transform=-(1-np.exp(dt/tau)))
