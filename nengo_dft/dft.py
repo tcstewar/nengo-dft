@@ -2,7 +2,7 @@ import nengo
 import numpy as np
 
 class DFT(nengo.Network):
-    def __init__(self, shape, tau=0.02, c_noise=1, beta=4, global_inh=0, h=None, dt=0.001):
+    def __init__(self, shape, tau=0.02, c_noise=1, beta=4, global_inh=0, h=None, dt=0.001, neuron_type=nengo.Sigmoid(tau_ref=1)):
         super().__init__()
         self.shape = shape
         with self:
@@ -14,7 +14,7 @@ class DFT(nengo.Network):
             self.g = nengo.Ensemble(n_neurons=n_neurons, dimensions=1,
                                     gain = np.ones(n_neurons)*beta,
                                     bias = np.zeros(n_neurons),
-                                    neuron_type=nengo.Sigmoid(tau_ref=1),
+                                    neuron_type=neuron_type,
                                    )
             self.s = nengo.Node(None, size_in=n_neurons)
             
@@ -37,8 +37,8 @@ class DFT(nengo.Network):
             
             # TODO: is there a better way to do this with a synapse so we don't hard-code dt?
             nengo.Connection(self.u, self.u, synapse=0)
-            #nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
-            nengo.Connection(self.du, self.u, synapse=None, transform=1/tau)
+            nengo.Connection(self.du, self.u, synapse=None, transform=dt/tau)
+            #nengo.Connection(self.du, self.u, synapse=None, transform=1/tau)
             
             # TODO: is this more accurate?
             #nengo.Connection(self.du, self.u, synapse=None, transform=-(1-np.exp(dt/tau)))
@@ -88,6 +88,40 @@ class DFT(nengo.Network):
             
         return k
 
+    def add_single_kernel(self, amplitude, sigma, limit):
+        assert len(self.shape) in [1,2]
+        
+        max_width = np.max(self.shape)
+        x = np.arange(0, max_width)
+        k = np.exp(-0.5*((x)/sigma)**2)
+        width = int(np.ceil(sigma*limit))
+        if width > max_width:
+            width = max_width
+        k = k[:width]
+        
+        if len(self.shape)==2:
+            xx, yy = np.meshgrid(np.arange(len(k)), np.arange(len(k)))
+            dist = xx**2 + yy**2
+            k = np.exp(-0.5*(dist/sigma**2))
+        
+        k = np.concatenate([k[1:][::-1], k])
+        
+        if len(self.shape)==2:
+            k = np.hstack([k[:,1:][:,::-1], k])
+        
+        k = k * amplitude / np.sum(k)
+    
+        with self:
+            n_neurons = np.prod(self.shape)
+            input_shape = tuple(self.shape + [1])
+            strides = np.ones_like(self.shape)
+            t = nengo.Convolution(n_filters=1, input_shape=input_shape, kernel_size=k.shape, strides=strides, 
+                                  padding='same', init=k[...,None,None])
+            nengo.Connection(self.g.neurons, self.du, transform=t, synapse=0)
+            
+        return k
+    
+    
 
     def make_display_1d(self):
 
