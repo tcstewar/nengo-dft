@@ -972,6 +972,57 @@ class Projection(object):
                           size_in=int(np.prod(self.sizes_in)) if self.sizes_in != [] else 1, 
                           size_out=int(np.prod(self.sizes_out)) if self.sizes_out != [] else 1)
         return self.node
+    
+    def generate_matrix(self):
+        # doesn't work for max reduction, as that's not linear
+        assert self.compression_type == 'sum' or (len(self.dimension_mapping) <= len(self.sizes_out))
+        
+        N_out = np.prod(self.sizes_out)
+        N_in = np.prod(self.sizes_in)
+        m = np.zeros((N_out, N_in))
+
+        v = np.zeros(N_in)
+        for i in range(N_in):
+            v[:] = 0
+            v[i] = 1
+            m[:,i] = self.update(v)
+        return m
+    
+    def generate_sparse_matrix(self):
+        # doesn't work for max reduction, as that's not linear
+        assert self.compression_type == 'sum' or (len(self.dimension_mapping) <= len(self.sizes_out))
+        
+        N_out = np.prod(self.sizes_out)
+        N_in = np.prod(self.sizes_in)
+        
+        indices = []
+        data = []
+        
+        v = np.zeros(N_in)
+        for i in range(N_in):
+            v[:] = 0
+            v[i] = 1
+            r = self.update(v)
+            for idx in np.nonzero(r)[0]:
+                indices.append((idx, i))
+                data.append(r[idx])
+
+        return np.array(indices), np.array(data), (N_out, N_in)
+        
+    
+    def make_net(self, sparse=True):
+        if sparse:
+            indices, data, shape = self.generate_sparse_matrix()
+            m = nengo.Sparse(shape, indices, init=data)
+        else:
+            m = self.generate_matrix()
+        net = nengo.Network()
+        with net:
+            net.input = nengo.Node(None, size_in=m.shape[1])
+            net.output = nengo.Node(None, size_in=m.shape[0])
+            nengo.Connection(net.input, net.output, synapse=None, transform=m)
+        return net
+                          
 
 
 class Convolution(nengo.Network):
